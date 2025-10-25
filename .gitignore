@@ -16,9 +16,9 @@ env/
 ENV/
 .env
 
-# PyTorch and ML Models
-*.pt
-*.pth
+# PyTorch and ML Models (exclude trained models)
+# *.pt  # Commented out to keep trained models
+# *.pth # Commented out to keep trained models
 *.onnx
 *.pb
 *.h5
@@ -26,6 +26,10 @@ ENV/
 *.joblib
 *.pkl
 *.pickle
+
+# Keep your trained models but exclude base downloads
+yolov8*.pt
+# But keep your custom trained models in runs/
 
 # Large Data Files
 *.jpg
