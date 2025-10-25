@@ -88,6 +88,13 @@ yarn-debug.log*
 yarn-error.log*
 .expo/
 .expo-shared/
+package-lock.json
+yarn.lock
+
+# Expo
+.expo/
+.expo-shared/
+expo-env.d.ts
 
 # React Native
 *.orig.*
