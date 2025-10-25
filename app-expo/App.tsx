@@ -1,0 +1,124 @@
+import React, { useState } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { View, Alert } from 'react-native';
+
+// Screens (migrated into Expo app)
+import SplashScreen from './components/SplashScreen';
+import HomeScreen from './components/HomeScreen';
+import CameraScreen from './components/CameraScreen';
+import AIAnalysisScreen from './components/AIAnalysisScreen';
+import ReportingScreen from './components/ReportingScreen';
+import ArchiveScreen from './components/ArchiveScreen';
+import AppHeader from './components/AppHeader';
+import AppFooter from './components/AppFooter';
+
+type AppScreen = 'splash' | 'home' | 'camera' | 'analysis' | 'reporting' | 'archive';
+
+export default function App() {
+  const [currentScreen, setCurrentScreen] = useState<AppScreen>('home');
+  const [capturedImageUris, setCapturedImageUris] = useState<string[]>([]);
+  const [showSplash, setShowSplash] = useState(true);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const navigateToHome = () => {
+    setCurrentScreen('home');
+    setIsAnalyzing(false);
+    setCapturedImageUris([]);
+  };
+  
+  const navigateToCamera = () => {
+    if (isAnalyzing) {
+      Alert.alert(
+        'Analysis in Progress',
+        'A report is currently being analyzed. Please wait for it to complete or cancel it before starting a new one.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setCurrentScreen('camera');
+  };
+  
+  const navigateToAnalysis = (imageUris: string[]) => {
+    setCapturedImageUris(imageUris);
+    setCurrentScreen('analysis');
+    setIsAnalyzing(true);
+  };
+  
+  const navigateToReporting = () => {
+    setCurrentScreen('reporting');
+    setIsAnalyzing(false);
+  };
+  
+  const resetToHome = () => {
+    setCurrentScreen('home');
+    setIsAnalyzing(false);
+    setCapturedImageUris([]);
+  };
+  
+  const backToHome = () => {
+    setCurrentScreen('home');
+  };
+  
+  const navigateToArchive = () => {
+    setCurrentScreen('archive');
+  };
+
+  // Show splash screen on initial load
+  React.useEffect(() => {
+    if (showSplash) {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+      }, 2000); // Show splash for 2 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash]);
+
+  const renderCurrentScreen = () => {
+    if (showSplash) {
+      return <SplashScreen onFinish={() => setShowSplash(false)} />;
+    }
+
+    switch (currentScreen) {
+      case 'home':
+        return <HomeScreen onCameraPress={navigateToCamera} onArchivePress={navigateToArchive} />;
+      case 'camera':
+        return <CameraScreen onPhotoTaken={navigateToAnalysis} onBack={backToHome} />;
+      case 'analysis':
+        return (
+          <AIAnalysisScreen
+            imageUris={capturedImageUris}
+            onAnalysisComplete={navigateToReporting}
+            onReturnHome={navigateToHome}
+            isAnalyzing={isAnalyzing}
+            setIsAnalyzing={setIsAnalyzing}
+          />
+        );
+      case 'reporting':
+        return <ReportingScreen onReportComplete={resetToHome} />;
+      case 'archive':
+        return <ArchiveScreen onBack={backToHome} />;
+      default:
+        return <HomeScreen onCameraPress={navigateToCamera} onArchivePress={navigateToArchive} />;
+    }
+  };
+
+  const showHeaderFooter = !showSplash && currentScreen !== 'home' && currentScreen !== 'camera' && currentScreen !== 'archive';
+  // For home and camera, avoid top safe area to make content flush to the top
+  const safeEdges = !showSplash && (currentScreen === 'home' || currentScreen === 'camera' || currentScreen === 'archive')
+    ? ['left', 'right', 'bottom']
+    : ['top', 'right', 'bottom', 'left'];
+  // Transparent background when not showing header/footer to prevent white bar
+  const safeBg = showHeaderFooter ? '#f8fafc' : 'transparent';
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <SafeAreaView edges={safeEdges as any} style={{ flex: 1, backgroundColor: safeBg }}>
+        {showHeaderFooter && <AppHeader />}
+        <View style={{ flex: 1 }}>{renderCurrentScreen()}</View>
+        {showHeaderFooter && <AppFooter />}
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}

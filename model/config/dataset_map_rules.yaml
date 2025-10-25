@@ -1,0 +1,108 @@
+# Label mapping rules - maps source dataset labels to target schema classes
+# Each key is a substring to match (case-insensitive) in source labels
+# Value is the target class name from label_schema.json
+
+# Road damage / potholes
+pothole: pothole
+pot-hole: pothole
+potholes: pothole
+
+# Cracks and road damage
+crack: road_crack
+alligator: road_crack
+longitudinal: road_crack
+transverse: road_crack
+block: road_crack
+rutting: road_crack
+d00: road_crack  # RDD dataset codes
+d01: road_crack
+d10: road_crack
+d11: road_crack
+d20: road_crack
+
+# Road debris
+debris: road_debris
+obstacle: road_debris
+rock: road_debris
+branch: road_debris
+roadkill: road_debris
+
+# Trash and waste
+garbage: overflowing_trash
+trash: overflowing_trash
+waste: overflowing_trash
+dump: overflowing_trash
+litter: overflowing_trash
+rubbish: overflowing_trash
+refuse: overflowing_trash
+bin_overflow: overflowing_trash
+bottle: overflowing_trash
+can: overflowing_trash
+plastic: overflowing_trash
+paper: overflowing_trash
+cardboard: overflowing_trash
+taco: overflowing_trash  # TACO dataset
+
+# Graffiti
+graffiti: graffiti
+vandalism: graffiti
+tagging: graffiti
+spray_paint: graffiti
+
+# Damaged signage
+broken_sign: damaged_sign
+damaged_sign: damaged_sign
+sign_damaged: damaged_sign
+missing_sign: damaged_sign
+bent_sign: damaged_sign
+faded_sign: damaged_sign
+vandalized_sign: damaged_sign
+traffic_sign: damaged_sign
+
+# Streetlight issues
+streetlight: bad_streetlight
+street_light: bad_streetlight
+bad_streetlight: bad_streetlight
+broken_light: bad_streetlight
+damaged_light: bad_streetlight
+light_out: bad_streetlight
+lamp: bad_streetlight
+
+# Sidewalk obstructions
+obstruction: sidewalk_obstruction
+clutter_sidewalk: sidewalk_obstruction
+sidewalk_blocked: sidewalk_obstruction
+encroachment: sidewalk_obstruction
+sidewalk: sidewalk_obstruction
+blocked: sidewalk_obstruction
+overgrowth: sidewalk_obstruction
+vegetation: sidewalk_obstruction
+
+# Utility line defects
+insulator: utility_line_defect
+wire: utility_line_defect
+conductor: utility_line_defect
+power_line: utility_line_defect
+electrical: utility_line_defect
+cable: utility_line_defect
+sagging_wire: utility_line_defect
+broken_wire: utility_line_defect
+pole: utility_line_defect
+transformer: utility_line_defect
+defect: utility_line_defect
+
+# Flooding
+flood: flooded_road
+flooding: flooded_road
+water: flooded_road
+puddle: flooded_road
+standing_water: flooded_road
+waterlogged: flooded_road
+
+# Additional common mappings
+d40: road_debris  # RDD dataset code for other damage
+d43: road_debris
+d44: road_debris
+crosswalk_blur: road_crack
+white_line_blur: road_crack
+marking_blur: road_crack

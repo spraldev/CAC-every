@@ -1,0 +1,32 @@
+# Ultralytics YOLO dataset configuration
+# For urban issue detection
+
+# Dataset root path (relative or absolute)
+path: data/merged
+
+# Train and val image paths (relative to path)
+train: images/train
+val: images/val
+
+# Number of classes
+nc: 10
+
+# Class names (must match label_schema.json indices)
+names:
+  0: pothole
+  1: road_crack
+  2: road_debris
+  3: overflowing_trash
+  4: damaged_sign
+  5: graffiti
+  6: bad_streetlight
+  7: sidewalk_obstruction
+  8: utility_line_defect
+  9: flooded_road
+
+# Optional: download command (not needed for local data)
+# download: |
+#   python scripts/download_all.py
+#   python scripts/merge_to_coco.py
+
+

@@ -1,0 +1,19 @@
+# Core ML/data dependencies
+huggingface_hub[hf_transfer]>=0.20.0
+datasets>=2.14.0
+ultralytics>=8.0.0
+
+# Image processing
+pillow>=10.0.0
+opencv-python-headless>=4.8.0
+
+# Utils
+tqdm>=4.65.0
+pyyaml>=6.0
+numpy>=1.24.0
+requests>=2.31.0
+
+# Performance optimizations
+hf_transfer>=0.1.4
+
+
