@@ -49,6 +49,7 @@ export interface AnalysisResult {
   location: Location;
   confidence: number;
   summary: string;
+  annotatedImageUris?: string[];
 }
 
 class ApiService {
@@ -82,7 +83,11 @@ class ApiService {
       }
     });
 
-    console.log('Calling multiframe analysis...');
+    if (location) {
+      formData.append('location', JSON.stringify(location));
+    }
+
+    console.log('Calling multiframe analysis with enrichment...');
     const multiframeResponse = await fetch(`${API_BASE_URL}/multiframe/analyze`, {
       method: 'POST',
       body: formData,
@@ -104,32 +109,10 @@ class ApiService {
 
     console.log('Multiframe analysis complete:', multiframeData.validated_detections.length, 'detections');
 
-    const detections = multiframeData.validated_detections;
-    let enrichedDetections = detections;
-    
-    if (detections.length > 0 && location) {
-      console.log('Enriching detections with tagging...');
-      const tagResponse = await fetch(`${API_BASE_URL}/tag/enrich-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          detections: detections,
-          location: location,
-        }),
-      });
+    const enrichedDetections = multiframeData.validated_detections;
+    const annotatedImageUris = multiframeData.annotated_images || [];
 
-      if (tagResponse.ok) {
-        const tagData = await tagResponse.json();
-        if (tagData.success && tagData.enriched_detections) {
-          enrichedDetections = tagData.enriched_detections;
-          console.log('Enrichment complete');
-        }
-      }
-    }
-
-    const primaryDetection = enrichedDetections[0] || detections[0];
+    const primaryDetection = enrichedDetections[0];
     const summary = primaryDetection 
       ? `AI detected: ${primaryDetection.class_name.replace('_', ' ')} with ${(primaryDetection.confidence * 100).toFixed(0)}% confidence`
       : 'No detections found';
@@ -139,6 +122,7 @@ class ApiService {
       location: location || { lat: 0, lon: 0 },
       confidence: primaryDetection?.confidence || 0,
       summary,
+      annotatedImageUris,
     };
   }
 
@@ -185,6 +169,10 @@ class ApiService {
       name: filename,
     } as any);
 
+    if (location) {
+      formData.append('location', JSON.stringify(location));
+    }
+
     const response = await fetch(`${API_BASE_URL}/multiframe/analyze-video`, {
       method: 'POST',
       body: formData,
@@ -206,31 +194,10 @@ class ApiService {
 
     console.log('Video analysis complete:', data.validated_detections.length, 'detections');
 
-    let enrichedDetections = data.validated_detections;
+    const enrichedDetections = data.validated_detections;
+    const annotatedImageUris = data.annotated_images || [];
 
-    if (data.validated_detections.length > 0 && location) {
-      console.log('Enriching detections with tagging...');
-      const tagResponse = await fetch(`${API_BASE_URL}/tag/enrich-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          detections: data.validated_detections,
-          location: location,
-        }),
-      });
-
-      if (tagResponse.ok) {
-        const tagData = await tagResponse.json();
-        if (tagData.success && tagData.enriched_detections) {
-          enrichedDetections = tagData.enriched_detections;
-          console.log('Enrichment complete');
-        }
-      }
-    }
-
-    const primaryDetection = enrichedDetections[0] || data.validated_detections[0];
+    const primaryDetection = enrichedDetections[0];
     const summary = primaryDetection
       ? `AI detected: ${primaryDetection.class_name.replace('_', ' ')} with ${(primaryDetection.confidence * 100).toFixed(0)}% confidence (from video)`
       : 'No detections found in video';
@@ -240,6 +207,7 @@ class ApiService {
       location: location || { lat: 0, lon: 0 },
       confidence: primaryDetection?.confidence || 0,
       summary,
+      annotatedImageUris,
     };
   }
 

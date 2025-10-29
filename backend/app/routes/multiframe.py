@@ -5,11 +5,13 @@ Multi-frame analysis endpoints for spatial correlation and validation.
 from flask import Blueprint, request, jsonify
 from app.services.multiframe_analyzer import MultiFrameAnalyzer
 from app.services.yolo_detector import YOLODetector
+from app.services.rag_tagger import RAGTagger
 import logging
 import cv2
 import numpy as np
 import tempfile
 import os
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,10 @@ def get_detector():
         _detector = YOLODetector()
     return _detector
 
+def get_tagger():
+    """Get or create RAGTagger instance."""
+    return RAGTagger(use_vector_db=False)
+
 
 @bp.route('/analyze', methods=['POST'])
 def analyze_frames():
@@ -42,11 +48,13 @@ def analyze_frames():
         - files: Multiple image files (multipart/form-data)
         - conf_threshold: Optional confidence threshold
         - min_frames_for_validation: Minimum frames needed to validate (default: 2)
+        - location: Optional JSON string with {lat, lon, address}
         
     Response:
         {
             "success": true,
             "validated_detections": [...],
+            "annotated_images": ["data:image/jpeg;base64,..."],
             "statistics": {
                 "num_frames": int,
                 "total_detections_before": int,
@@ -68,11 +76,22 @@ def analyze_frames():
         
         conf_threshold = request.form.get('conf_threshold', type=float)
         min_frames = request.form.get('min_frames_for_validation', type=int, default=2)
+        location_str = request.form.get('location')
+        
+        location = None
+        if location_str:
+            import json
+            try:
+                location = json.loads(location_str)
+            except:
+                logger.warning("Failed to parse location JSON")
         
         detector = get_detector()
         analyzer = MultiFrameAnalyzer(min_frames_for_validation=min_frames)
+        tagger = get_tagger()
         
         frame_detections = []
+        frame_images = []
         
         for file in files:
             if file.filename == '':
@@ -80,8 +99,9 @@ def analyze_frames():
             
             try:
                 file_bytes = file.read()
-                detections, _ = detector.detect_from_bytes(file_bytes, conf_threshold)
+                detections, image = detector.detect_from_bytes(file_bytes, conf_threshold)
                 frame_detections.append(detections)
+                frame_images.append(image)
             except Exception as e:
                 logger.error(f"Error processing frame {file.filename}: {e}")
                 continue
@@ -91,9 +111,23 @@ def analyze_frames():
         
         results = analyzer.analyze_frames(frame_detections)
         
+        validated_detections = results['validated_detections']
+        if validated_detections and location:
+            validated_detections = tagger.enrich_multiple_detections(validated_detections, location)
+        
+        annotated_images = []
+        for image, detections in zip(frame_images, frame_detections):
+            annotated = detector.annotate_image(image, detections)
+            resized = cv2.resize(annotated, (800, int(800 * annotated.shape[0] / annotated.shape[1])))
+            _, buffer = cv2.imencode('.jpg', resized, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            base64_image = base64.b64encode(buffer).decode('utf-8')
+            annotated_images.append(f"data:image/jpeg;base64,{base64_image}")
+        
         return jsonify({
             'success': True,
-            **results
+            'validated_detections': validated_detections,
+            'annotated_images': annotated_images,
+            **{k: v for k, v in results.items() if k != 'validated_detections'}
         })
         
     except Exception as e:
@@ -216,11 +250,13 @@ def analyze_video():
         - conf_threshold: Optional confidence threshold
         - frame_interval: Optional frame extraction interval in seconds (default: 0.5)
         - max_frames: Optional maximum number of frames to extract (default: 10)
+        - location: Optional JSON string with {lat, lon, address}
         
     Response:
         {
             "success": true,
             "validated_detections": [...],
+            "annotated_images": ["data:image/jpeg;base64,..."],
             "statistics": {
                 "num_frames": int,
                 "total_detections_before": int,
@@ -243,6 +279,15 @@ def analyze_video():
         conf_threshold = request.form.get('conf_threshold', type=float)
         frame_interval = request.form.get('frame_interval', type=float, default=0.5)
         max_frames = request.form.get('max_frames', type=int, default=10)
+        location_str = request.form.get('location')
+        
+        location = None
+        if location_str:
+            import json
+            try:
+                location = json.loads(location_str)
+            except:
+                logger.warning("Failed to parse location JSON")
         
         temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
         try:
@@ -259,6 +304,7 @@ def analyze_video():
             
             detector = get_detector()
             analyzer = get_analyzer()
+            tagger = get_tagger()
             
             frame_detections = []
             for i, frame in enumerate(frames):
@@ -278,9 +324,23 @@ def analyze_video():
             
             results = analyzer.analyze_frames(frame_detections)
             
+            validated_detections = results['validated_detections']
+            if validated_detections and location:
+                validated_detections = tagger.enrich_multiple_detections(validated_detections, location)
+            
+            annotated_images = []
+            for frame, detections in zip(frames, frame_detections):
+                annotated = detector.annotate_image(frame, detections)
+                resized = cv2.resize(annotated, (800, int(800 * annotated.shape[0] / annotated.shape[1])))
+                _, buffer = cv2.imencode('.jpg', resized, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                base64_image = base64.b64encode(buffer).decode('utf-8')
+                annotated_images.append(f"data:image/jpeg;base64,{base64_image}")
+            
             return jsonify({
                 'success': True,
-                **results
+                'validated_detections': validated_detections,
+                'annotated_images': annotated_images,
+                **{k: v for k, v in results.items() if k != 'validated_detections'}
             })
             
         finally:

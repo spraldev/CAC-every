@@ -134,7 +134,6 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
   }, [cursorX, cursorY]);
 
   useEffect(() => {
-    // Submit the test report when component mounts
     const submitReport = async () => {
       if (analysisResult && analysisResult.detections.length > 0) {
         const detection = analysisResult.detections[0];
@@ -143,6 +142,35 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
         try {
           const response = await apiService.submitTestReport(detection, location);
           setTestReportResponse(response);
+          
+          const enrichment = detection.enrichment || {};
+          const sim = response.response?.simulated_311_response;
+          
+          const ragReport = [
+            `Issue: ${detection.class_name.replace('_', ' ')}`,
+            `Confidence: ${Math.round(detection.confidence * 100)}%`,
+            enrichment.department ? `Department: ${enrichment.department}` : null,
+            enrichment.urgency ? `Urgency: ${enrichment.urgency}` : null,
+            enrichment.technical_specs ? `Technical Specs: ${enrichment.technical_specs}` : null,
+            enrichment.routing_category ? `Routing: ${enrichment.routing_category}` : null,
+            enrichment.safety_priority ? `Safety Priority: ${enrichment.safety_priority}` : null,
+            sim?.service_name ? `\nService: ${sim.service_name}` : null,
+            sim?.description ? `Description: ${sim.description}` : null,
+            sim?.agency_responsible ? `Agency: ${sim.agency_responsible}` : null,
+            sim?.priority ? `Priority: ${sim.priority}` : null,
+            sim?.status ? `Status: ${sim.status}` : null,
+            location?.address
+              ? `\nAddress: ${location.address}`
+              : `Coordinates: ${location?.lat?.toFixed(4)}, ${location?.lon?.toFixed(4)}`,
+          ].filter(Boolean).join('\n');
+          
+          setReportingText(ragReport);
+          setIsComplete(true);
+          
+          setTimeout(async () => {
+            setShowSuccessPopup(true);
+            await scheduleNotification();
+          }, 1000);
         } catch (error) {
           console.error('Failed to submit report:', error);
         }
