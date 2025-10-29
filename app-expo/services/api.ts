@@ -1,5 +1,5 @@
 const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:5001/api' 
+  ? 'http://localhost:5000/api' 
   : 'https://your-production-backend.com/api';
 
 export interface DetectionResult {
@@ -59,101 +59,87 @@ class ApiService {
    * 3. Returns complete analysis with enriched detections
    */
   async analyzeImages(imageUris: string[], location?: Location): Promise<AnalysisResult> {
-    try {
-      // Step 1: Prepare images for multiframe analysis
-      const formData = new FormData();
+    const formData = new FormData();
+    
+    imageUris.forEach((uri, index) => {
+      const filename = uri.split('/').pop() || `image_${index}.jpg`;
       
-      imageUris.forEach((uri, index) => {
-        const filename = uri.split('/').pop() || `image_${index}.jpg`;
-        
-        // Handle both base64 and file:// URIs
-        if (uri.startsWith('data:')) {
-          // Base64 image
-          const match = /^data:(.+);base64,(.+)$/.exec(uri);
-          if (match) {
-            formData.append('files', {
-              uri,
-              type: 'image/jpeg',
-              name: filename,
-            } as any);
-          }
-        } else {
-          // File URI
+      if (uri.startsWith('data:')) {
+        const match = /^data:(.+);base64,(.+)$/.exec(uri);
+        if (match) {
           formData.append('files', {
             uri,
             type: 'image/jpeg',
             name: filename,
           } as any);
         }
-      });
+      } else {
+        formData.append('files', {
+          uri,
+          type: 'image/jpeg',
+          name: filename,
+        } as any);
+      }
+    });
 
-      // Step 2: Call multiframe analysis endpoint (detects + validates)
-      console.log('Calling multiframe analysis...');
-      const multiframeResponse = await fetch(`${API_BASE_URL}/multiframe/analyze`, {
+    console.log('Calling multiframe analysis...');
+    const multiframeResponse = await fetch(`${API_BASE_URL}/multiframe/analyze`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    if (!multiframeResponse.ok) {
+      const errorText = await multiframeResponse.text();
+      throw new Error(`Multiframe analysis failed: ${multiframeResponse.statusText} - ${errorText}`);
+    }
+
+    const multiframeData = await multiframeResponse.json();
+    
+    if (!multiframeData.success || !multiframeData.validated_detections) {
+      throw new Error('Invalid response from multiframe analysis');
+    }
+
+    console.log('Multiframe analysis complete:', multiframeData.validated_detections.length, 'detections');
+
+    const detections = multiframeData.validated_detections;
+    let enrichedDetections = detections;
+    
+    if (detections.length > 0 && location) {
+      console.log('Enriching detections with tagging...');
+      const tagResponse = await fetch(`${API_BASE_URL}/tag/enrich-batch`, {
         method: 'POST',
-        body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          detections: detections,
+          location: location,
+        }),
       });
 
-      if (!multiframeResponse.ok) {
-        throw new Error(`Multiframe analysis failed: ${multiframeResponse.statusText}`);
-      }
-
-      const multiframeData = await multiframeResponse.json();
-      
-      if (!multiframeData.success || !multiframeData.validated_detections) {
-        throw new Error('Invalid response from multiframe analysis');
-      }
-
-      console.log('Multiframe analysis complete:', multiframeData.validated_detections.length, 'detections');
-
-      // Step 3: Enrich detections with tagging
-      const detections = multiframeData.validated_detections;
-      let enrichedDetections = detections;
-      
-      if (detections.length > 0 && location) {
-        console.log('Enriching detections with tagging...');
-        const tagResponse = await fetch(`${API_BASE_URL}/tag/enrich-batch`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            detections: detections,
-            location: location,
-          }),
-        });
-
-        if (tagResponse.ok) {
-          const tagData = await tagResponse.json();
-          if (tagData.success && tagData.enriched_detections) {
-            enrichedDetections = tagData.enriched_detections;
-            console.log('Enrichment complete');
-          }
+      if (tagResponse.ok) {
+        const tagData = await tagResponse.json();
+        if (tagData.success && tagData.enriched_detections) {
+          enrichedDetections = tagData.enriched_detections;
+          console.log('Enrichment complete');
         }
       }
-
-      // Step 4: Prepare result
-      const primaryDetection = enrichedDetections[0] || detections[0];
-      const summary = primaryDetection 
-        ? `AI detected: ${primaryDetection.class_name.replace('_', ' ')} with ${(primaryDetection.confidence * 100).toFixed(0)}% confidence`
-        : 'No detections found';
-
-      return {
-        detections: enrichedDetections,
-        location: location || { lat: 0, lon: 0 },
-        confidence: primaryDetection?.confidence || 0,
-        summary,
-      };
-    } catch (error) {
-      console.error('Analysis error:', error);
-      
-      // Return mock data only if backend is completely unavailable
-      console.log('Using fallback mock data');
-      return this.getMockAnalysisResult();
     }
+
+    const primaryDetection = enrichedDetections[0] || detections[0];
+    const summary = primaryDetection 
+      ? `AI detected: ${primaryDetection.class_name.replace('_', ' ')} with ${(primaryDetection.confidence * 100).toFixed(0)}% confidence`
+      : 'No detections found';
+
+    return {
+      detections: enrichedDetections,
+      location: location || { lat: 0, lon: 0 },
+      confidence: primaryDetection?.confidence || 0,
+      summary,
+    };
   }
 
   /**
@@ -161,31 +147,26 @@ class ApiService {
    * The detection should already be enriched from the analysis pipeline
    */
   async submitTestReport(detection: DetectionResult, location: Location): Promise<TestReportResponse> {
-    try {
-      console.log('Submitting test report...');
-      const response = await fetch(`${API_BASE_URL}/georeport/test-report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          detection,
-          location,
-        }),
-      });
+    console.log('Submitting test report...');
+    const response = await fetch(`${API_BASE_URL}/georeport/test-report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        detection,
+        location,
+      }),
+    });
 
-      if (!response.ok) {
-        throw new Error(`Report submission failed: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log('Test report submitted:', data.service_request_id);
-      return data;
-    } catch (error) {
-      console.error('Report submission error:', error);
-      // Return mock response if backend unavailable
-      return this.getMockTestReportResponse(detection, location);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Report submission failed: ${response.statusText} - ${errorText}`);
     }
+
+    const data = await response.json();
+    console.log('Test report submitted:', data.service_request_id);
+    return data;
   }
 
   /**
@@ -193,82 +174,73 @@ class ApiService {
    * Sends video to backend which extracts frames and runs multiframe analysis
    */
   async analyzeVideo(videoUri: string, location?: Location): Promise<AnalysisResult> {
-    try {
-      console.log('Analyzing video...');
-      const formData = new FormData();
+    console.log('Analyzing video...');
+    const formData = new FormData();
 
-      const filename = videoUri.split('/').pop() || 'video.mp4';
+    const filename = videoUri.split('/').pop() || 'video.mp4';
 
-      // Append video file
-      formData.append('video', {
-        uri: videoUri,
-        type: 'video/mp4',
-        name: filename,
-      } as any);
+    formData.append('video', {
+      uri: videoUri,
+      type: 'video/mp4',
+      name: filename,
+    } as any);
 
-      // Call video analysis endpoint
-      const response = await fetch(`${API_BASE_URL}/multiframe/analyze-video`, {
+    const response = await fetch(`${API_BASE_URL}/multiframe/analyze-video`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Video analysis failed: ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !data.validated_detections) {
+      throw new Error('Invalid response from video analysis');
+    }
+
+    console.log('Video analysis complete:', data.validated_detections.length, 'detections');
+
+    let enrichedDetections = data.validated_detections;
+
+    if (data.validated_detections.length > 0 && location) {
+      console.log('Enriching detections with tagging...');
+      const tagResponse = await fetch(`${API_BASE_URL}/tag/enrich-batch`, {
         method: 'POST',
-        body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          detections: data.validated_detections,
+          location: location,
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Video analysis failed: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (!data.success || !data.validated_detections) {
-        throw new Error('Invalid response from video analysis');
-      }
-
-      console.log('Video analysis complete:', data.validated_detections.length, 'detections');
-
-      // Enrich detections with tagging
-      let enrichedDetections = data.validated_detections;
-
-      if (data.validated_detections.length > 0 && location) {
-        console.log('Enriching detections with tagging...');
-        const tagResponse = await fetch(`${API_BASE_URL}/tag/enrich-batch`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            detections: data.validated_detections,
-            location: location,
-          }),
-        });
-
-        if (tagResponse.ok) {
-          const tagData = await tagResponse.json();
-          if (tagData.success && tagData.enriched_detections) {
-            enrichedDetections = tagData.enriched_detections;
-            console.log('Enrichment complete');
-          }
+      if (tagResponse.ok) {
+        const tagData = await tagResponse.json();
+        if (tagData.success && tagData.enriched_detections) {
+          enrichedDetections = tagData.enriched_detections;
+          console.log('Enrichment complete');
         }
       }
-
-      // Prepare result
-      const primaryDetection = enrichedDetections[0] || data.validated_detections[0];
-      const summary = primaryDetection
-        ? `AI detected: ${primaryDetection.class_name.replace('_', ' ')} with ${(primaryDetection.confidence * 100).toFixed(0)}% confidence (from video)`
-        : 'No detections found in video';
-
-      return {
-        detections: enrichedDetections,
-        location: location || { lat: 0, lon: 0 },
-        confidence: primaryDetection?.confidence || 0,
-        summary,
-      };
-    } catch (error) {
-      console.error('Video analysis error:', error);
-      console.log('Using fallback mock data');
-      return this.getMockAnalysisResult();
     }
+
+    const primaryDetection = enrichedDetections[0] || data.validated_detections[0];
+    const summary = primaryDetection
+      ? `AI detected: ${primaryDetection.class_name.replace('_', ' ')} with ${(primaryDetection.confidence * 100).toFixed(0)}% confidence (from video)`
+      : 'No detections found in video';
+
+    return {
+      detections: enrichedDetections,
+      location: location || { lat: 0, lon: 0 },
+      confidence: primaryDetection?.confidence || 0,
+      summary,
+    };
   }
 
   /**
@@ -287,52 +259,6 @@ class ApiService {
       console.error('Health check error:', error);
       return { status: 'unavailable' };
     }
-  }
-
-  /**
-   * Mock analysis result ONLY for demo/fallback when backend is down
-   */
-  private getMockAnalysisResult(): AnalysisResult {
-    // Return empty result when backend is unavailable - don't fake data
-    return {
-      detections: [],
-      location: {
-        lat: 0,
-        lon: 0,
-      },
-      confidence: 0,
-      summary: 'Backend unavailable - could not analyze images',
-    };
-  }
-
-  /**
-   * Mock test report response ONLY for demo/fallback when backend is down
-   */
-  private getMockTestReportResponse(detection: DetectionResult, location: Location): TestReportResponse {
-    const testId = `TEST-${Date.now().toString(36).toUpperCase()}`;
-    
-    return {
-      success: true,
-      service_request_id: testId,
-      jurisdiction: 'test',
-      test_mode: true,
-      response: {
-        message: 'BACKEND UNAVAILABLE: This is simulated response because backend is not reachable',
-        simulated_311_response: {
-          service_request_id: testId,
-          status: 'open',
-          service_name: `${detection.class_name.replace('_', ' ')} Issue`,
-          description: `Test report for ${detection.class_name} detected with ${(detection.confidence * 100).toFixed(0)}% confidence`,
-          requested_datetime: new Date().toISOString(),
-          address: location.address || `Lat: ${location.lat}, Lon: ${location.lon}`,
-          lat: location.lat,
-          long: location.lon,
-          jurisdiction: 'Test Jurisdiction',
-          agency_responsible: 'Municipal Services Department',
-        },
-        what_this_shows: 'This is what your audience would see when an actual Open311-compatible municipality receives the report',
-      },
-    };
   }
 }
 
