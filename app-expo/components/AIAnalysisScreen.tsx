@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import apiService, { AnalysisResult } from '../services/api';
+import * as Location from 'expo-location';
+import apiService, { AnalysisResult, Location as LocationType } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -115,22 +116,35 @@ const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
 
   useEffect(() => {
     if (isAnalyzing && imageUris.length > 0) {
-      // Call the backend API for analysis
       const performAnalysis = async () => {
         try {
-          // Check if this is a video by file extension
           const firstUri = imageUris[0];
           const isVideo = /\.(mp4|mov|avi|mkv)$/i.test(firstUri);
 
-          // Get GPS location (in real implementation)
-          // For now, pass undefined - will use backend to determine location
+          let location: LocationType | undefined;
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+              const locationData = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              });
+              location = {
+                lat: locationData.coords.latitude,
+                lon: locationData.coords.longitude,
+              };
+              console.log('GPS location captured:', location);
+            } else {
+              console.log('Location permission denied');
+            }
+          } catch (locationError) {
+            console.warn('Failed to get location:', locationError);
+          }
+
           let result;
           if (isVideo && imageUris.length === 1) {
-            // Analyze video
-            result = await apiService.analyzeVideo(firstUri);
+            result = await apiService.analyzeVideo(firstUri, location);
           } else {
-            // Analyze images
-            result = await apiService.analyzeImages(imageUris);
+            result = await apiService.analyzeImages(imageUris, location);
           }
           setAnalysisResult(result);
           

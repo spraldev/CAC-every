@@ -41,16 +41,19 @@ const VerificationScreen: React.FC<VerificationScreenProps> = ({
         </View>
 
         {/* Images with Detections */}
-        {imageUris.map((uri, index) => {
+        {(analysisResult.annotatedImageUris && analysisResult.annotatedImageUris.length > 0 
+          ? analysisResult.annotatedImageUris 
+          : imageUris
+        ).map((uri, index) => {
           const detection = analysisResult.detections[index] || analysisResult.detections[0];
+          const useAnnotated = analysisResult.annotatedImageUris && analysisResult.annotatedImageUris.length > 0;
 
           return (
             <View key={index} style={styles.imageCard}>
               <View style={styles.imageContainer}>
                 <Image source={{ uri }} style={styles.image} resizeMode="contain" />
 
-                {/* Bounding Box Overlay */}
-                {detection && detection.bbox && (
+                {!useAnnotated && detection && detection.bbox && (
                   <Svg style={styles.svgOverlay}>
                     <Rect
                       x={`${detection.bbox[0]}%`}
