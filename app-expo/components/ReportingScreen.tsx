@@ -125,8 +125,8 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
               enrichment: {
                 urgency: 'medium',
                 safety_priority: 'standard',
-                technical_specs: 'Test detection for demo',
-                department: 'Test Department',
+                technical_specs: 'Test detection',
+                department: 'Municipal Services',
                 routing_category: 'General'
               }
             };
@@ -210,7 +210,6 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
   };
 
   const serviceRequestId = testReportResponse?.service_request_id || 'PENDING';
-  const isTestMode = testReportResponse?.test_mode === true;
 
   return (
     <>
@@ -220,15 +219,6 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
         <View style={styles.header}>
           <Text style={styles.mainTitle}>AI is Filing Your Report</Text>
         </View>
-
-        {/* DEMO MODE BANNER */}
-        {isTestMode && (
-          <View style={styles.demoBanner}>
-            <Text style={styles.demoBannerText}>
-              🎬 DEMO MODE: This is what your audience would see when Open311 receives the report
-            </Text>
-          </View>
-        )}
 
         {/* Browser Label - Hide when complete */}
         {!isComplete && (
@@ -311,6 +301,19 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
           />
         </View>
 
+        {/* Comprehensive Report */}
+        {testReportResponse && testReportResponse.comprehensive_report && (
+          <View style={styles.comprehensiveReportCard}>
+            <View style={styles.comprehensiveReportHeader}>
+              <Ionicons name="document-text" size={24} color="#1e40af" />
+              <Text style={styles.comprehensiveReportTitle}>Incident Report</Text>
+            </View>
+            <Text style={styles.comprehensiveReportText}>
+              {testReportResponse.comprehensive_report}
+            </Text>
+          </View>
+        )}
+
         {/* Status Information */}
         {testReportResponse && (
           <View style={styles.statusView}>
@@ -346,15 +349,6 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
                   </Text>
                 </View>
               </View>
-              
-              {/* Demo Mode Message */}
-              {isTestMode && (
-                <View style={styles.demoMessage}>
-                  <Text style={styles.demoMessageText}>
-                    {testReportResponse.response?.what_this_shows || 'This is what your audience would see when an actual Open311-compatible municipality receives the report'}
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
         )}
@@ -370,7 +364,7 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
                 Emergency Report Successfully Filed!
               </Text>
               <Text style={styles.successSubtext}>
-                {isTestMode ? 'Demo report submitted to test endpoint' : 'Report submitted to municipal services'}
+                Report submitted to municipal services
               </Text>
             </View>
             <TouchableOpacity
@@ -468,7 +462,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Math.min(20, width * 0.05),
-    paddingTop: Math.max(40, height * 0.05),
+    paddingTop: Math.max(60, height * 0.08),
   },
   header: {
     marginBottom: 32,
@@ -589,6 +583,41 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 24,
   },
+  comprehensiveReportCard: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+  },
+  comprehensiveReportHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e0e7ff',
+  },
+  comprehensiveReportTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e40af',
+    letterSpacing: 0.5,
+  },
+  comprehensiveReportText: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: '#374151',
+    textAlign: 'left',
+  },
   statusView: {
     width: '100%',
     backgroundColor: 'rgba(16, 185, 129, 0.05)',
@@ -674,32 +703,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  demoBanner: {
-    backgroundColor: '#fef3c7',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginBottom: 24,
-    alignItems: 'center',
-  },
-  demoBannerText: {
-    fontSize: 14,
-    color: '#d97706',
-    fontWeight: '600',
-  },
-  demoMessage: {
-    backgroundColor: '#f3f4f6',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  demoMessageText: {
-    fontSize: 12,
-    color: '#4b5563',
-    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

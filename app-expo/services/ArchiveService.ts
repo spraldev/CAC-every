@@ -2,10 +2,11 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Only import native modules if not on web
+// Using legacy API to maintain compatibility
 let FileSystem: any = null;
 if (Platform.OS !== 'web') {
   try {
-    FileSystem = require('expo-file-system');
+    FileSystem = require('expo-file-system/legacy');
   } catch (error) {
     console.warn('FileSystem not available:', error);
   }

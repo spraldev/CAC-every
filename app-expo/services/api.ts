@@ -1,6 +1,13 @@
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:4000/api' 
-  : 'https://your-production-backend.com/api';
+// Backend configuration
+// For local testing: use 'http://localhost:4000/api'
+// For iPhone testing: use your ngrok URL with /api suffix
+// Get ngrok URL by running: ngrok http 4000
+const USE_NGROK = true; // Set to false for local testing
+const NGROK_URL = "https://b1bc70e4cf8b.ngrok-free.app";
+
+const API_BASE_URL = USE_NGROK
+  ? `${NGROK_URL}/api`
+  : 'http://localhost:4000/api';
 
 export interface DetectionResult {
   class_name: string;
@@ -26,6 +33,7 @@ export interface TestReportResponse {
   service_request_id: string;
   jurisdiction: string;
   test_mode: boolean;
+  comprehensive_report?: string;
   response: {
     message: string;
     simulated_311_response: {
@@ -39,6 +47,7 @@ export interface TestReportResponse {
       long: number;
       jurisdiction: string;
       agency_responsible: string;
+      priority?: string;
     };
     what_this_shows: string;
   };

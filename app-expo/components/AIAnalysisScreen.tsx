@@ -103,20 +103,43 @@ const ImageAnalyzer: React.FC = () => {
   );
 };
 
-const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({ 
-  imageUris, 
+const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
+  imageUris,
   onAnalysisComplete,
   onReturnHome,
   isAnalyzing,
   setIsAnalyzing
 }) => {
-  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const loadingAnimation = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isLoading) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(loadingAnimation, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(loadingAnimation, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    } else {
+      loadingAnimation.setValue(0);
+    }
+  }, [isLoading, loadingAnimation]);
 
   useEffect(() => {
     if (isAnalyzing && imageUris.length > 0) {
       const performAnalysis = async () => {
+        setIsLoading(true);
         try {
           const firstUri = imageUris[0];
           const isVideo = /\.(mp4|mov|avi|mkv)$/i.test(firstUri);
@@ -146,24 +169,18 @@ const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
           } else {
             result = await apiService.analyzeImages(imageUris, location);
           }
+
           setAnalysisResult(result);
-          
-          // Simulate progress for visual feedback
-          const progressInterval = setInterval(() => {
-            setAnalysisProgress((prev) => {
-              if (prev >= 100) {
-                clearInterval(progressInterval);
-                setIsComplete(true);
-                setTimeout(() => {
-                  onAnalysisComplete(result);
-                }, 1000);
-                return 100;
-              }
-              return prev + 2;
-            });
-          }, 100);
+          setIsLoading(false);
+          setIsComplete(true);
+
+          // Navigate immediately after analysis completes
+          setTimeout(() => {
+            onAnalysisComplete(result);
+          }, 500);
         } catch (error) {
           console.error('Analysis error:', error);
+          setIsLoading(false);
           Alert.alert('Analysis Error', 'Failed to analyze images. Using fallback data.');
 
           // Still complete with mock data
@@ -174,20 +191,11 @@ const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
             summary: 'Analysis failed - using fallback data'
           };
           setAnalysisResult(mockResult);
+          setIsComplete(true);
 
-          const progressInterval = setInterval(() => {
-            setAnalysisProgress((prev) => {
-              if (prev >= 100) {
-                clearInterval(progressInterval);
-                setIsComplete(true);
-                setTimeout(() => {
-                  onAnalysisComplete(mockResult);
-                }, 1000);
-                return 100;
-              }
-              return prev + 2;
-            });
-          }, 100);
+          setTimeout(() => {
+            onAnalysisComplete(mockResult);
+          }, 500);
         }
       };
 
@@ -266,20 +274,40 @@ const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
           </ScrollView>
         </View>
 
-        {/* Progress Bar */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Analysis Progress</Text>
-            <Text style={styles.progressValue}>{Math.round(analysisProgress)}%</Text>
+        {/* Loading Indicator */}
+        <View style={styles.loadingSection}>
+          <View style={styles.loadingHeader}>
+            <Text style={styles.loadingLabel}>
+              {isLoading ? 'Analyzing with AI...' : isComplete ? 'Analysis Complete!' : 'Ready'}
+            </Text>
           </View>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressFill, 
-                { width: `${analysisProgress}%` }
-              ]} 
-            />
-          </View>
+          {isLoading && (
+            <View style={styles.loadingBarContainer}>
+              <View style={styles.loadingBar}>
+                <Animated.View
+                  style={[
+                    styles.loadingBarFill,
+                    {
+                      transform: [
+                        {
+                          translateX: loadingAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-width, width],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          )}
+          {isComplete && (
+            <View style={styles.completeIndicator}>
+              <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+              <Text style={styles.completeText}>Ready to proceed</Text>
+            </View>
+          )}
         </View>
 
         {/* Status */}
@@ -319,7 +347,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Math.min(20, width * 0.05),
-    paddingTop: Math.max(20, height * 0.025),
+    paddingTop: Math.max(60, height * 0.08),
     paddingBottom: Math.max(20, height * 0.03),
   },
   analyzerContainer: {
@@ -416,34 +444,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
   },
-  progressSection: {
+  loadingSection: {
     marginBottom: 16,
   },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+  loadingHeader: {
+    marginBottom: 12,
+    alignItems: 'center',
   },
-  progressLabel: {
+  loadingLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
-  },
-  progressValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#1e40af',
   },
-  progressBar: {
+  loadingBarContainer: {
+    width: '100%',
+  },
+  loadingBar: {
     height: 8,
     backgroundColor: '#e2e8f0',
     borderRadius: 4,
     overflow: 'hidden',
   },
-  progressFill: {
+  loadingBarFill: {
     height: '100%',
+    width: '100%',
     backgroundColor: '#1e40af',
     borderRadius: 4,
+  },
+  completeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  completeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10b981',
   },
   statusCard: {
     backgroundColor: 'white',
