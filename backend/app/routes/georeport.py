@@ -276,3 +276,90 @@ def auto_route_report():
     except Exception as e:
         logger.error(f"Auto-route error: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/test-report', methods=['POST'])
+def submit_test_report():
+    """
+    Submit a test report (simulated only, no actual Open311 submission).
+    This endpoint simulates what would happen if a report was submitted to Open311.
+    
+    Request:
+        {
+            "detection": {
+                "class_name": str,
+                "confidence": float,
+                "enrichment": {...} (optional)
+            },
+            "location": {
+                "lat": float,
+                "lon": float,
+                "address": str (optional)
+            }
+        }
+        
+    Response:
+        {
+            "success": true,
+            "service_request_id": str,
+            "jurisdiction": "test",
+            "test_mode": true,
+            "response": {
+                "message": str,
+                "simulated_311_response": {...},
+                "what_this_shows": str
+            }
+        }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'detection' not in data or 'location' not in data:
+            return jsonify({'error': 'Detection and location required'}), 400
+        
+        detection = data['detection']
+        location = data['location']
+        
+        test_id = f"TEST-{hash(str(detection) + str(location)) & 0xFFFFFF:06X}"
+        
+        class_name = detection.get('class_name', 'unknown')
+        confidence = detection.get('confidence', 0)
+        enrichment = detection.get('enrichment', {})
+        
+        service_name = class_name.replace('_', ' ').title()
+        department = enrichment.get('department', 'Municipal Services Department')
+        urgency = enrichment.get('urgency', 'medium')
+        
+        address = location.get('address', f"Lat: {location['lat']}, Lon: {location['lon']}")
+        
+        response = {
+            'success': True,
+            'service_request_id': test_id,
+            'jurisdiction': 'test',
+            'test_mode': True,
+            'response': {
+                'message': 'TEST MODE: This is a simulated report. No actual Open311 submission was made.',
+                'simulated_311_response': {
+                    'service_request_id': test_id,
+                    'status': 'open',
+                    'service_name': f'{service_name} Issue',
+                    'description': f'{service_name} detected with {int(confidence * 100)}% confidence',
+                    'requested_datetime': __import__('datetime').datetime.now().isoformat(),
+                    'address': address,
+                    'lat': location['lat'],
+                    'long': location['lon'],
+                    'jurisdiction': 'Test Jurisdiction',
+                    'agency_responsible': department,
+                    'priority': urgency,
+                },
+                'what_this_shows': 'This simulates what your audience would see when an actual Open311-compatible municipality receives the report. In production, this would be sent to the real municipal API.'
+            }
+        }
+        
+        logger.info(f"Test report created: {test_id} for {class_name}")
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Test report error: {e}")
+        return jsonify({'error': str(e)}), 500

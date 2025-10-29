@@ -6,6 +6,10 @@ from flask import Blueprint, request, jsonify
 from app.services.multiframe_analyzer import MultiFrameAnalyzer
 from app.services.yolo_detector import YOLODetector
 import logging
+import cv2
+import numpy as np
+import tempfile
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -200,3 +204,136 @@ def validate_detection():
     except Exception as e:
         logger.error(f"Validation error: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/analyze-video', methods=['POST'])
+def analyze_video():
+    """
+    Analyze a video by extracting frames and running multi-frame analysis.
+    
+    Request:
+        - video: Video file (multipart/form-data)
+        - conf_threshold: Optional confidence threshold
+        - frame_interval: Optional frame extraction interval in seconds (default: 0.5)
+        - max_frames: Optional maximum number of frames to extract (default: 10)
+        
+    Response:
+        {
+            "success": true,
+            "validated_detections": [...],
+            "statistics": {
+                "num_frames": int,
+                "total_detections_before": int,
+                "total_detections_after": int,
+                "false_positive_reduction_rate": float,
+                "detections_by_class": {...},
+                "avg_confidence": float
+            }
+        }
+    """
+    try:
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided'}), 400
+        
+        video_file = request.files['video']
+        
+        if video_file.filename == '':
+            return jsonify({'error': 'Empty video filename'}), 400
+        
+        conf_threshold = request.form.get('conf_threshold', type=float)
+        frame_interval = request.form.get('frame_interval', type=float, default=0.5)
+        max_frames = request.form.get('max_frames', type=int, default=10)
+        
+        temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        try:
+            video_file.save(temp_video.name)
+            temp_video.close()
+            
+            logger.info(f"Extracting frames from video: {video_file.filename}")
+            frames = extract_frames_from_video(temp_video.name, frame_interval, max_frames)
+            
+            if len(frames) < 2:
+                return jsonify({'error': 'Could not extract enough frames from video (minimum 2 required)'}), 400
+            
+            logger.info(f"Extracted {len(frames)} frames from video")
+            
+            detector = get_detector()
+            analyzer = get_analyzer()
+            
+            frame_detections = []
+            for i, frame in enumerate(frames):
+                try:
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    frame_bytes = buffer.tobytes()
+                    
+                    detections, _ = detector.detect_from_bytes(frame_bytes, conf_threshold)
+                    frame_detections.append(detections)
+                    logger.info(f"Frame {i+1}: {len(detections)} detections")
+                except Exception as e:
+                    logger.error(f"Error processing frame {i}: {e}")
+                    continue
+            
+            if not frame_detections:
+                return jsonify({'error': 'No valid frames processed'}), 400
+            
+            results = analyzer.analyze_frames(frame_detections)
+            
+            return jsonify({
+                'success': True,
+                **results
+            })
+            
+        finally:
+            if os.path.exists(temp_video.name):
+                os.unlink(temp_video.name)
+        
+    except Exception as e:
+        logger.error(f"Video analysis error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def extract_frames_from_video(video_path, frame_interval=0.5, max_frames=10):
+    """
+    Extract frames from a video file.
+    
+    Args:
+        video_path: Path to video file
+        frame_interval: Time interval between frames in seconds
+        max_frames: Maximum number of frames to extract
+        
+    Returns:
+        List of frames as numpy arrays
+    """
+    frames = []
+    
+    cap = cv2.VideoCapture(video_path)
+    
+    if not cap.isOpened():
+        raise ValueError("Could not open video file")
+    
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps == 0:
+        fps = 30  # Default to 30 fps if unable to get fps
+    
+    frame_skip = int(fps * frame_interval)
+    if frame_skip < 1:
+        frame_skip = 1
+    
+    frame_count = 0
+    extracted_count = 0
+    
+    while extracted_count < max_frames:
+        ret, frame = cap.read()
+        
+        if not ret:
+            break
+        
+        if frame_count % frame_skip == 0:
+            frames.append(frame)
+            extracted_count += 1
+        
+        frame_count += 1
+    
+    cap.release()
+    
+    return frames
