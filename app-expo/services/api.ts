@@ -1,5 +1,5 @@
 const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:5000/api' 
+  ? 'http://localhost:4000/api' 
   : 'https://your-production-backend.com/api';
 
 export interface DetectionResult {
@@ -131,8 +131,13 @@ class ApiService {
    * The detection should already be enriched from the analysis pipeline
    */
   async submitTestReport(detection: DetectionResult, location: Location): Promise<TestReportResponse> {
-    console.log('Submitting test report...');
-    const response = await fetch(`${API_BASE_URL}/georeport/test-report`, {
+    const url = `${API_BASE_URL}/georeport/test-report`;
+    console.log('=== submitTestReport API call ===');
+    console.log('URL:', url);
+    console.log('Detection:', detection);
+    console.log('Location:', location);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -143,13 +148,16 @@ class ApiService {
       }),
     });
 
+    console.log('Response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('Response error:', errorText);
       throw new Error(`Report submission failed: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Test report submitted:', data.service_request_id);
+    console.log('Test report response data:', data);
     return data;
   }
 

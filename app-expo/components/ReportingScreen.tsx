@@ -24,33 +24,9 @@ interface ReportingScreenProps {
 const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, analysisResult }) => {
   const [reportingText, setReportingText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState(0);
   const [testReportResponse, setTestReportResponse] = useState<TestReportResponse | null>(null);
   const [showNewReportModal, setShowNewReportModal] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  
-  const reportingPhases = [
-    {
-      title: "Emergency Services Portal Access",
-      content: "Connecting to the Open311/GeoReport API system...\n\nAuthentication successful. Access verified to municipal reporting system.",
-      duration: 2000,
-    },
-    {
-      title: "Automated Report Generation", 
-      content: "\n\nNow generating the official incident report with all necessary details:\n\n- Incident classification and detection details\n- Location coordinates and address verification\n- Visual evidence attachment and metadata\n- Severity assessment and risk factors\n\nAll fields are being populated automatically based on AI analysis.",
-      duration: 3000,
-    },
-    {
-      title: "Emergency Dispatch Submission",
-      content: "\n\nSubmitting the incident report to municipal services...\n\nReport submitted successfully! The system has generated a service request and confirmed receipt.",
-      duration: 2000,
-    },
-    {
-      title: "Response Coordination",
-      content: "\n\nMunicipal services have been notified and the incident has been logged in their system for dispatch and tracking.",
-      duration: 2000,
-    }
-  ];
 
   const cursorX = React.useRef(new Animated.Value(0)).current;
   const cursorY = React.useRef(new Animated.Value(0)).current;
@@ -135,12 +111,33 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
 
   useEffect(() => {
     const submitReport = async () => {
-      if (analysisResult && analysisResult.detections.length > 0) {
-        const detection = analysisResult.detections[0];
+      console.log('=== ReportingScreen submitReport useEffect ===');
+      console.log('analysisResult:', analysisResult);
+      console.log('has detections:', analysisResult?.detections?.length);
+
+      if (analysisResult) {
+        // If no detections, create a mock detection for testing
+        const detection = analysisResult.detections.length > 0
+          ? analysisResult.detections[0]
+          : {
+              class_name: 'test_issue',
+              confidence: 0.85,
+              enrichment: {
+                urgency: 'medium',
+                safety_priority: 'standard',
+                technical_specs: 'Test detection for demo',
+                department: 'Test Department',
+                routing_category: 'General'
+              }
+            };
+
         const location = analysisResult.location;
-        
+
+        console.log('Calling submitTestReport with:', { detection, location });
+
         try {
           const response = await apiService.submitTestReport(detection, location);
+          console.log('submitTestReport response:', response);
           setTestReportResponse(response);
           
           const enrichment = detection.enrichment || {};
@@ -163,6 +160,8 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
               ? `\nAddress: ${location.address}`
               : `Coordinates: ${location?.lat?.toFixed(4)}, ${location?.lon?.toFixed(4)}`,
           ].filter(Boolean).join('\n');
+
+          console.log('RAG Report:\n', ragReport);
           
           setReportingText(ragReport);
           setIsComplete(true);
@@ -174,54 +173,13 @@ const ReportingScreen: React.FC<ReportingScreenProps> = ({ onReportComplete, ana
         } catch (error) {
           console.error('Failed to submit report:', error);
         }
+      } else {
+        console.log('NOT calling submitTestReport - missing analysisResult');
       }
     };
-    
+
     submitReport();
   }, [analysisResult]);
-
-  useEffect(() => {
-    if (currentPhase < reportingPhases.length) {
-      const phase = reportingPhases[currentPhase];
-      let currentText = reportingText;
-      
-      // Add title if it's a new phase
-      if (currentPhase > 0) {
-        currentText += `\n\n**${phase.title}**\n`;
-      } else {
-        currentText = `**${phase.title}**\n`;
-      }
-      
-      // Type out the content character by character
-      let charIndex = 0;
-      const content = phase.content;
-      
-      const typeTimer = setInterval(() => {
-        if (charIndex < content.length) {
-          setReportingText(currentText + content.substring(0, charIndex + 1));
-          charIndex++;
-        } else {
-          clearInterval(typeTimer);
-          // Move to next phase after a brief pause
-          setTimeout(() => {
-            if (currentPhase + 1 < reportingPhases.length) {
-              setCurrentPhase(currentPhase + 1);
-            } else {
-              setIsComplete(true);
-              // Show success popup and send notification after a brief delay
-              setTimeout(async () => {
-                setShowSuccessPopup(true);
-                // Schedule notification
-                await scheduleNotification();
-              }, 1000);
-            }
-          }, 1500);
-        }
-      }, 25); // Typing speed
-
-      return () => clearInterval(typeTimer);
-    }
-  }, [currentPhase, reportingPhases.length]);
 
   const scheduleNotification = async () => {
     try {
