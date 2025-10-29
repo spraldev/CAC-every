@@ -2,24 +2,26 @@ import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { View, Alert } from 'react-native';
+import { AnalysisResult } from './services/api';
 
 // Screens (migrated into Expo app)
 import SplashScreen from './components/SplashScreen';
 import HomeScreen from './components/HomeScreen';
 import CameraScreen from './components/CameraScreen';
 import AIAnalysisScreen from './components/AIAnalysisScreen';
+import VerificationScreen from './components/VerificationScreen';
 import ReportingScreen from './components/ReportingScreen';
 import ArchiveScreen from './components/ArchiveScreen';
-import AppHeader from './components/AppHeader';
 import AppFooter from './components/AppFooter';
 
-type AppScreen = 'splash' | 'home' | 'camera' | 'analysis' | 'reporting' | 'archive';
+type AppScreen = 'splash' | 'home' | 'camera' | 'analysis' | 'verification' | 'reporting' | 'archive';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('home');
   const [capturedImageUris, setCapturedImageUris] = useState<string[]>([]);
   const [showSplash, setShowSplash] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | undefined>();
 
   const navigateToHome = () => {
     setCurrentScreen('home');
@@ -44,10 +46,15 @@ export default function App() {
     setCurrentScreen('analysis');
     setIsAnalyzing(true);
   };
-  
+
+  const navigateToVerification = (analysisResult: AnalysisResult) => {
+    setAnalysisResult(analysisResult);
+    setCurrentScreen('verification');
+    setIsAnalyzing(false);
+  };
+
   const navigateToReporting = () => {
     setCurrentScreen('reporting');
-    setIsAnalyzing(false);
   };
   
   const resetToHome = () => {
@@ -88,14 +95,23 @@ export default function App() {
         return (
           <AIAnalysisScreen
             imageUris={capturedImageUris}
-            onAnalysisComplete={navigateToReporting}
+            onAnalysisComplete={navigateToVerification}
             onReturnHome={navigateToHome}
             isAnalyzing={isAnalyzing}
             setIsAnalyzing={setIsAnalyzing}
           />
         );
+      case 'verification':
+        return (
+          <VerificationScreen
+            imageUris={capturedImageUris}
+            analysisResult={analysisResult!}
+            onConfirm={navigateToReporting}
+            onGoBack={() => setCurrentScreen('analysis')}
+          />
+        );
       case 'reporting':
-        return <ReportingScreen onReportComplete={resetToHome} />;
+        return <ReportingScreen onReportComplete={resetToHome} analysisResult={analysisResult} />;
       case 'archive':
         return <ArchiveScreen onBack={backToHome} />;
       default:
@@ -103,21 +119,18 @@ export default function App() {
     }
   };
 
-  const showHeaderFooter = !showSplash && currentScreen !== 'home' && currentScreen !== 'camera' && currentScreen !== 'archive';
-  // For home and camera, avoid top safe area to make content flush to the top
-  const safeEdges = !showSplash && (currentScreen === 'home' || currentScreen === 'camera' || currentScreen === 'archive')
-    ? ['left', 'right', 'bottom']
-    : ['top', 'right', 'bottom', 'left'];
-  // Transparent background when not showing header/footer to prevent white bar
-  const safeBg = showHeaderFooter ? '#f8fafc' : 'transparent';
+  const showFooter = !showSplash && (currentScreen === 'home' || currentScreen === 'reporting');
+  // For all screens, avoid top safe area to make content flush to the top (screens handle their own padding)
+  const safeEdges = !showSplash ? ['left', 'right', 'bottom'] : [];
+  // Transparent background to prevent white bar
+  const safeBg = 'transparent';
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <StatusBar style="auto" translucent backgroundColor="transparent" />
       <SafeAreaView edges={safeEdges as any} style={{ flex: 1, backgroundColor: safeBg }}>
-        {showHeaderFooter && <AppHeader />}
         <View style={{ flex: 1 }}>{renderCurrentScreen()}</View>
-        {showHeaderFooter && <AppFooter />}
+        {showFooter && <AppFooter />}
       </SafeAreaView>
     </SafeAreaProvider>
   );

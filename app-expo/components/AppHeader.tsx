@@ -6,16 +6,16 @@ interface AppHeaderProps {
   subtitle?: string;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ 
-  title = "CrisisLink", 
-  subtitle = "Emergency Response System" 
+const AppHeader: React.FC<AppHeaderProps> = ({
+  title = "SeeSomething AI",
+  subtitle = "Emergency Response System"
 }) => {
   return (
     <View style={styles.container}>
       <View space="md" alignItems="center" style={styles.content}>
         {/* Logo/Icon */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>CL</Text>
+          <Text style={styles.logoText}>SS</Text>
         </View>
         
         {/* Title Section */}

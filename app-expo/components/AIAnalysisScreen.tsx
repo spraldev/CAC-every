@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import apiService, { AnalysisResult } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
 interface AIAnalysisScreenProps {
   imageUris: string[];
-  onAnalysisComplete: () => void;
+  onAnalysisComplete: (analysisResult: AnalysisResult) => void;
   onReturnHome: () => void;
   isAnalyzing: boolean;
   setIsAnalyzing: (value: boolean) => void;
@@ -110,27 +111,75 @@ const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
 }) => {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
   useEffect(() => {
-    if (isAnalyzing) {
-      // Start analysis
-      const progressInterval = setInterval(() => {
-        setAnalysisProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(progressInterval);
-            setIsComplete(true);
-            setTimeout(() => {
-              onAnalysisComplete();
-            }, 1000);
-            return 100;
-          }
-          return prev + 2;
-        });
-      }, 100);
+    if (isAnalyzing && imageUris.length > 0) {
+      // Call the backend API for analysis
+      const performAnalysis = async () => {
+        try {
+          // Check if this is a video by file extension
+          const firstUri = imageUris[0];
+          const isVideo = /\.(mp4|mov|avi|mkv)$/i.test(firstUri);
 
-      return () => clearInterval(progressInterval);
+          // Get GPS location (in real implementation)
+          // For now, pass undefined - will use backend to determine location
+          let result;
+          if (isVideo && imageUris.length === 1) {
+            // Analyze video
+            result = await apiService.analyzeVideo(firstUri);
+          } else {
+            // Analyze images
+            result = await apiService.analyzeImages(imageUris);
+          }
+          setAnalysisResult(result);
+          
+          // Simulate progress for visual feedback
+          const progressInterval = setInterval(() => {
+            setAnalysisProgress((prev) => {
+              if (prev >= 100) {
+                clearInterval(progressInterval);
+                setIsComplete(true);
+                setTimeout(() => {
+                  onAnalysisComplete(result);
+                }, 1000);
+                return 100;
+              }
+              return prev + 2;
+            });
+          }, 100);
+        } catch (error) {
+          console.error('Analysis error:', error);
+          Alert.alert('Analysis Error', 'Failed to analyze images. Using fallback data.');
+
+          // Still complete with mock data
+          const mockResult: AnalysisResult = {
+            detections: [],
+            location: { lat: 0, lon: 0 },
+            confidence: 0,
+            summary: 'Analysis failed - using fallback data'
+          };
+          setAnalysisResult(mockResult);
+
+          const progressInterval = setInterval(() => {
+            setAnalysisProgress((prev) => {
+              if (prev >= 100) {
+                clearInterval(progressInterval);
+                setIsComplete(true);
+                setTimeout(() => {
+                  onAnalysisComplete(mockResult);
+                }, 1000);
+                return 100;
+              }
+              return prev + 2;
+            });
+          }, 100);
+        }
+      };
+
+      performAnalysis();
     }
-  }, [isAnalyzing, onAnalysisComplete]);
+  }, [isAnalyzing, imageUris, onAnalysisComplete]);
 
   const handleReturnHome = () => {
     Alert.alert(
@@ -178,16 +227,8 @@ const AIAnalysisScreen: React.FC<AIAnalysisScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleReturnHome}>
-          <Ionicons name="chevron-back" size={24} color="#1e40af" />
-          <Text style={styles.backText}>Return to Home</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Main Content */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -259,34 +300,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  backText: {
-    fontSize: 16,
-    color: '#1e40af',
-    fontWeight: '600',
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: Math.min(20, width * 0.05),
+    paddingTop: Math.max(20, height * 0.025),
+    paddingBottom: Math.max(20, height * 0.03),
   },
   analyzerContainer: {
     alignItems: 'center',
-    marginVertical: 30,
+    marginVertical: 16,
   },
   imageFrame: {
     width: width * 0.6,
@@ -358,7 +382,7 @@ const styles = StyleSheet.create({
     color: '#1e40af',
   },
   imagesContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   imagesScroll: {
     flexGrow: 0,
@@ -379,7 +403,7 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   progressSection: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -411,7 +435,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -441,6 +465,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 14,
     alignItems: 'center',
+    maxWidth: width * 0.9,
+    alignSelf: 'center',
   },
   cancelButtonText: {
     fontSize: 16,

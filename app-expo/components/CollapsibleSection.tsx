@@ -16,12 +16,46 @@ interface CollapsibleSectionProps {
   icon?: string;
 }
 
-const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ 
-  title, 
-  content, 
-  isCompleted, 
-  isActive = false, 
-  icon = 'AI' 
+// Helper function to parse markdown-style bold text
+const parseFormattedText = (text: string) => {
+  const parts: Array<{ text: string; bold: boolean }> = [];
+  const regex = /\*\*(.*?)\*\*/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the bold part
+    if (match.index > lastIndex) {
+      parts.push({
+        text: text.substring(lastIndex, match.index),
+        bold: false,
+      });
+    }
+    // Add the bold part
+    parts.push({
+      text: match[1],
+      bold: true,
+    });
+    lastIndex = regex.lastIndex;
+  }
+
+  // Add remaining text after the last match
+  if (lastIndex < text.length) {
+    parts.push({
+      text: text.substring(lastIndex),
+      bold: false,
+    });
+  }
+
+  return parts;
+};
+
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
+  title,
+  content,
+  isCompleted,
+  isActive = false,
+  icon = 'AI'
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [rotateAnim] = useState(new Animated.Value(0));
@@ -102,7 +136,14 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         <View style={styles.contentContainer}>
           <View style={styles.divider} />
           <Text style={styles.content}>
-            {content}
+            {parseFormattedText(content).map((part, index) => (
+              <Text
+                key={index}
+                style={part.bold ? styles.boldText : undefined}
+              >
+                {part.text}
+              </Text>
+            ))}
           </Text>
           {isActive && (
             <Text style={styles.cursor}>_</Text>
@@ -193,6 +234,10 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 22,
     paddingHorizontal: 4,
+  },
+  boldText: {
+    fontWeight: 'bold',
+    color: '#1e293b',
   },
   cursor: {
     fontSize: 16,

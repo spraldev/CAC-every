@@ -71,7 +71,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onCameraPress, onArchivePress }
       <View style={styles.content}>
         {/* Header Section */}
         <View style={[styles.header, { alignItems: 'center' }]}>
-          <Text style={styles.appTitle}>CAC Vision</Text>
+          <Text style={styles.appTitle}>SeeSomething AI</Text>
           <Text style={styles.appSubtitle}>
             Instant incident identification & reporting
           </Text>
@@ -155,12 +155,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: height * 0.15,
-    paddingHorizontal: 24,
+    paddingTop: height * 0.1,
+    paddingHorizontal: Math.min(24, width * 0.05),
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 40,
-    gap: 48,
+    paddingBottom: Math.max(20, height * 0.03),
+    gap: Math.min(48, height * 0.06),
   },
   backgroundCircle: {
     position: 'absolute',
@@ -199,18 +199,18 @@ const styles = StyleSheet.create({
   },
   cameraButtonContainer: {
     alignItems: 'center',
-    marginVertical: 40,
+    marginVertical: Math.min(40, height * 0.05),
   },
   mainCameraButton: {
-    width: 160,
-    height: 160,
+    width: Math.min(160, width * 0.4),
+    height: Math.min(160, width * 0.4),
     justifyContent: 'center',
     alignItems: 'center',
   },
   outerRing: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: Math.min(160, width * 0.4),
+    height: Math.min(160, width * 0.4),
+    borderRadius: Math.min(80, width * 0.2),
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
@@ -221,9 +221,9 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   innerButton: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: Math.min(140, width * 0.35),
+    height: Math.min(140, width * 0.35),
+    borderRadius: Math.min(70, width * 0.175),
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -246,7 +246,9 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 48,
+    gap: Math.min(48, width * 0.08),
+    flexWrap: 'wrap',
+    maxWidth: width * 0.9,
   },
   statItem: {
     alignItems: 'center',
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: 'white',
-    paddingHorizontal: 20,
+    paddingHorizontal: Math.min(20, width * 0.05),
     paddingVertical: 12,
     borderRadius: 25,
     shadowColor: '#000',
@@ -292,6 +294,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    maxWidth: width * 0.9,
+    flexWrap: 'nowrap',
   },
   archiveButtonText: {
     fontSize: 16,

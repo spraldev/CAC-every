@@ -45,9 +45,9 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             },
           ]}
         >
-          <Text style={styles.appTitle}>CRISISLINK</Text>
+          <Text style={styles.appTitle}>SEESOMETHING AI</Text>
           <Text style={styles.appSubtitle}>EMERGENCY RESPONSE SYSTEM</Text>
-          <Text style={styles.versionText}>Version 1.0.0</Text>
+          <Text style={styles.versionText}>seesomething.ai</Text>
         </Animated.View>
         
         <Animated.View

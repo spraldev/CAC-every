@@ -30,14 +30,29 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [currentImage, setCurrentImage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [captureMode, setCaptureMode] = useState<'photo' | 'video'>('photo');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [currentMediaIsVideo, setCurrentMediaIsVideo] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const MAX_IMAGES = 3;
+  const MAX_VIDEO_DURATION = 5;
 
   useEffect(() => {
     if (!permission) {
       requestPermission();
     }
   }, [permission, requestPermission]);
+
+  useEffect(() => {
+    // Cleanup timer on unmount
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, []);
 
   const toggleCameraFacing = () => {
     setFacing(current => (current === 'back' ? 'front' : 'back'));
@@ -54,6 +69,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
         });
         if (photo) {
           setCurrentImage(photo.uri);
+          setCurrentMediaIsVideo(false);
           await saveToArchive(photo.uri);
           setIsCapturing(false);
         }
@@ -63,6 +79,77 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
         Alert.alert('Error', 'Failed to capture photo. Please try again.');
       }
     }
+  };
+
+  const startVideoRecording = async () => {
+    if (cameraRef.current && !isRecording) {
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      try {
+        // Start countdown timer
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingTime((prev) => {
+            const newTime = prev + 0.1;
+            if (newTime >= MAX_VIDEO_DURATION) {
+              stopVideoRecording();
+              return MAX_VIDEO_DURATION;
+            }
+            return newTime;
+          });
+        }, 100);
+
+        const video = await cameraRef.current.recordAsync({
+          maxDuration: MAX_VIDEO_DURATION,
+        });
+
+        if (video) {
+          setCurrentImage(video.uri);
+          setCurrentMediaIsVideo(true);
+          await saveToArchive(video.uri);
+        }
+      } catch (error) {
+        console.error('Error recording video:', error);
+        Alert.alert('Error', 'Failed to record video. Please try again.');
+      } finally {
+        setIsRecording(false);
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+      }
+    }
+  };
+
+  const stopVideoRecording = async () => {
+    if (cameraRef.current && isRecording) {
+      try {
+        await cameraRef.current.stopRecording();
+      } catch (error) {
+        console.error('Error stopping recording:', error);
+      }
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleCapturePress = () => {
+    if (captureMode === 'photo') {
+      takePicture();
+    } else {
+      if (isRecording) {
+        stopVideoRecording();
+      } else {
+        startVideoRecording();
+      }
+    }
+  };
+
+  const toggleCaptureMode = () => {
+    setCaptureMode((prev) => (prev === 'photo' ? 'video' : 'photo'));
   };
 
   const saveToArchive = async (imageUri: string) => {
@@ -93,6 +180,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
 
   const retakePhoto = () => {
     setCurrentImage(null);
+    setCurrentMediaIsVideo(false);
   };
 
   const addAnotherImage = () => {
@@ -179,8 +267,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
               <Text style={styles.confirmButtonText}>Analyze</Text>
             </LinearGradient>
           </TouchableOpacity>
-          
-          {capturedImages.length < MAX_IMAGES - 1 ? (
+
+          {!currentMediaIsVideo && capturedImages.length < MAX_IMAGES - 1 ? (
             <TouchableOpacity style={styles.addImageButton} onPress={addAnotherImage}>
               <Ionicons name="add-circle-outline" size={24} color="white" />
               <Text style={styles.reviewButtonText}>Add Image</Text>
@@ -201,17 +289,49 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
         {/* Top Controls Bar */}
         <SafeAreaView style={styles.topBar}>
           <View style={styles.topBarContent}>
-            {/* Back Button */}
-            {onBack && (
-              <TouchableOpacity style={styles.iconButton} onPress={onBack}>
-                <Ionicons name="chevron-back" size={28} color="white" />
+            <View style={styles.topLeftButtons}>
+              {/* Back Button */}
+              {onBack && (
+                <TouchableOpacity style={styles.iconButton} onPress={onBack}>
+                  <Ionicons name="chevron-back" size={28} color="white" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Mode Toggle */}
+            <View style={styles.modeToggleContainer}>
+              <TouchableOpacity
+                style={[styles.modeButton, captureMode === 'photo' && styles.modeButtonActive]}
+                onPress={() => !isRecording && setCaptureMode('photo')}
+                disabled={isRecording}
+              >
+                <Ionicons name="camera" size={20} color={captureMode === 'photo' ? '#1e40af' : 'white'} />
+                <Text style={[styles.modeButtonText, captureMode === 'photo' && styles.modeButtonTextActive]}>
+                  Photo
+                </Text>
               </TouchableOpacity>
-            )}
-            
-            {/* Camera Toggle */}
-            <TouchableOpacity style={styles.iconButton} onPress={toggleCameraFacing}>
-              <Ionicons name="camera-reverse" size={26} color="white" />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeButton, captureMode === 'video' && styles.modeButtonActive]}
+                onPress={() => !isRecording && setCaptureMode('video')}
+                disabled={isRecording}
+              >
+                <Ionicons name="videocam" size={20} color={captureMode === 'video' ? '#1e40af' : 'white'} />
+                <Text style={[styles.modeButtonText, captureMode === 'video' && styles.modeButtonTextActive]}>
+                  Video
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.topRightButtons}>
+              {/* Camera Flip Toggle */}
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={toggleCameraFacing}
+                disabled={isRecording}
+              >
+                <Ionicons name="camera-reverse" size={26} color="white" />
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
 
@@ -221,8 +341,20 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
           <View style={styles.cornerTR} />
           <View style={styles.cornerBL} />
           <View style={styles.cornerBR} />
-          <Text style={styles.guideText}>Center incident in frame</Text>
+          <Text style={styles.guideText}>
+            {captureMode === 'photo' ? 'Center incident in frame' : 'Record up to 5 seconds'}
+          </Text>
         </View>
+
+        {/* Recording Timer */}
+        {isRecording && (
+          <View style={styles.recordingTimerContainer}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingTimerText}>
+              {(MAX_VIDEO_DURATION - recordingTime).toFixed(1)}s
+            </Text>
+          </View>
+        )}
 
         {/* Bottom Controls */}
         <View style={styles.bottomControls}>
@@ -233,14 +365,18 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onPhotoTaken, onBack }) => 
           </TouchableOpacity>
 
           {/* Capture Button */}
-          <TouchableOpacity 
-            style={[styles.shutterButton, isCapturing && styles.shutterButtonCapturing]}
-            onPress={takePicture}
+          <TouchableOpacity
+            style={[styles.shutterButton, (isCapturing || isRecording) && styles.shutterButtonCapturing]}
+            onPress={handleCapturePress}
             disabled={isCapturing}
             activeOpacity={0.7}
           >
             <View style={styles.shutterOuter}>
-              <View style={[styles.shutterInner, isCapturing && styles.shutterInnerCapturing]} />
+              <View style={[
+                styles.shutterInner,
+                isRecording && styles.shutterInnerRecording,
+                isCapturing && styles.shutterInnerCapturing
+              ]} />
             </View>
           </TouchableOpacity>
 
@@ -293,8 +429,46 @@ const styles = StyleSheet.create({
   topBarContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 15,
+  },
+  topLeftButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    flex: 1,
+  },
+  topRightButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modeToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 25,
+    padding: 4,
+    gap: 4,
+  },
+  modeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  modeButtonActive: {
+    backgroundColor: 'white',
+  },
+  modeButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modeButtonTextActive: {
+    color: '#1e40af',
   },
   iconButton: {
     width: 44,
@@ -421,6 +595,38 @@ const styles = StyleSheet.create({
   },
   shutterInnerCapturing: {
     backgroundColor: '#ff4444',
+  },
+  shutterInnerRecording: {
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    width: 40,
+    height: 40,
+  },
+  recordingTimerContainer: {
+    position: 'absolute',
+    top: height * 0.15,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.95)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 10,
+    zIndex: 100,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'white',
+  },
+  recordingTimerText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    minWidth: 50,
+    textAlign: 'center',
   },
   placeholderButton: {
     width: 50,
